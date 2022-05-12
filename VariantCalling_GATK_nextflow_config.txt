@@ -1,0 +1,114 @@
+// Process Config:
+
+process.executor = 'slurm'
+executor.$local.cpus = 1
+executor.$local.memory = '32 GB'
+process.cpus = 32
+process.queue = 'cluster'
+process.memory = '64 GB'
+
+// Pipeline Config:
+
+$HOSTNAME='178.164.230.188'
+params.outdir='/home/edina/DolphinNext/report117'
+
+process {
+    withName:fastqc {
+        container = 'file:///opt/singularity_images/fastqc:0.11.9--hdfd78af_1.sif'
+    }
+    withName:samtools_samtools_vc {
+        container = 'file:///opt/singularity_images/samtools_1.3.1--h1b8c3c0_8.sif'
+    }
+    withName:samtools_samtools_vc2 {
+        container = 'file:///opt/singularity_images/samtools_1.3.1--h1b8c3c0_8.sif'
+    }
+    withName:GATK_gatk_HaplotypeCaller {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_gatk_MarkDuplicatesSpark {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_gatk_VariantFiltration {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_gatk_VariantFiltration2 {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_gatk_BaseRecalibrator {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_gatk_BaseRecalibrator2 {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_gatk_AnalyzeCovariates {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_gatk_ApplyBQSR {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_picard2 {
+        container = 'file:///opt/singularity_images/picard_2.26.10--hdfd78af_0.sif'
+    }
+    withName:GATK_gatk_HaplotypeCaller2 {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_gatk_VariantFiltration3 {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_gatk_VariantFiltration4 {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_picard {
+        container = 'file:///opt/singularity_images/picard_2.26.10--hdfd78af_0.sif'
+    } 
+     withName:GATK_SelectVariant_Selectvariant_1 {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_SelectVariant_Selectvariant_2 {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_SelectVariant_2_Selectvariant_1 {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_SelectVariant_2_Selectvariant_2 {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_SelectVariant_3_Selectvariant_1 {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_SelectVariant_3_Selectvariant_2 {
+        container = 'file:///opt/singularity_images/gatk_4.2.4.1.sif'
+    }
+    withName:GATK_picard_bamfix {
+        container = 'file:///opt/singularity_images/picard_2.26.10--hdfd78af_0.sif'
+    } 
+    withName:GATK_samtools_depth {
+        container = 'file:///opt/singularity_images/samtools_1.3.1--h1b8c3c0_8.sif'
+    }
+     withName:GATK_snpeff {
+        container = 'file:///opt/singularity_images/snpeff_5.0--hdfd78af_1.sif'
+    } 
+    withName:GATK_snpeff_2 {
+        container = 'file:///opt/singularity_images/snpeff_5.0--hdfd78af_1.sif'
+    }
+    withName:GATK_samtools_readgroups {
+        container = 'file:///opt/singularity_images/samtools_1.3.1--h1b8c3c0_8.sif'
+    }
+     withName:multiqc {
+        container = 'file:///opt/singularity_images/multiqc_1.11_pandoc.sif'
+    }
+}
+singularity {
+    enabled = true
+}
+
+// Run Parameters:
+
+params {
+  reads = '/home/edina/fastq/SRR6794144_1.fastq'
+  reads2 = '/home/edina/fastq/SRR6794144_2.fastq'
+  snpeff_species = 'GRCh37.87'
+  threads__align = '64'
+  genome_name = 'GRCh38_no_alt_analysis_set.fasta'
+  genome = '/home/deepvariant/reference/GRCh38_no_alt_analysis_set.fasta'
+}

@@ -1,0 +1,48 @@
+// Process Config:
+
+process.executor = 'slurm'
+executor.$local.cpus = 1
+executor.$local.memory = '32 GB'
+process.cpus = 32
+process.queue = 'cluster'
+process.memory = '100 GB'
+process {
+  withName: DeepVariant { cpus  = 1  }
+  withName: DeepVariant { queue  = 'cluster' }
+  withName: DeepVariant { memory  = '60 GB' }
+}
+
+// Pipeline Config:
+
+$HOSTNAME='178.164.230.188'
+params.outdir='/home/edina/DolphinNext/report118'
+
+process {
+    withName:samtools {
+        container = 'file:///opt/singularity_images/samtools_1.3.1--h1b8c3c0_8.sif'
+    }
+    withName:bwamem {
+        container = 'file:///opt/singularity_images/bwa_0.7.15--1.sif'
+    }
+    withName:bwaindex {
+        container = 'file:///opt/singularity_images/bwa_0.7.15--1.sif'
+    }
+    withName:DeepVariant {
+        container = 'file:///opt/singularity_images/deepvariant_1.3_google.sif'
+    }
+}
+
+singularity {
+    enabled = true
+}
+
+// Run Parameters:
+
+params {
+  genome = '/home/deepvariant/reference'
+  genome_name = 'GRCh38_no_alt_analysis_set.fasta'
+  read1 = '/home/edina/fastq/SRR6794144_1.fastq'
+  read2 = '/home/edina/fastq/SRR6794144_2.fastq'
+  tmp_directory = '/home/edina/DeepVariant'
+  snpeff_species = 'GRCh37.87'
+}

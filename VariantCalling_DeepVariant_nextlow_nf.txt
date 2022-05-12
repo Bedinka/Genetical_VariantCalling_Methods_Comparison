@@ -1,0 +1,157 @@
+$HOSTNAME = "178.164.230.188"
+
+if (!params.genome){params.genome = ""} 
+if (!params.read1){params.read1 = ""} 
+if (!params.read2){params.read2 = ""} 
+if (!params.genome_name){params.genome_name = ""} 
+if (!params.tmp_directory){params.tmp_directory = ""} 
+if (!params.snpeff_species){params.snpeff_species = ""} 
+// Stage empty file to be used as an optional input where required
+ch_empty_file_1 = file("$baseDir/.emptyfiles/NO_FILE_1", hidden:true)
+
+g_0_genome_g_4 = file(params.genome, type: 'any')
+g_0_genome_g_6 = file(params.genome, type: 'any')
+g_1_read_g_4 = file(params.read1, type: 'any')
+g_1_read_g_13 = file(params.read1, type: 'any')
+g_2_read_g_4 = file(params.read2, type: 'any')
+g_2_read_g_13 = file(params.read2, type: 'any')
+Channel.value(params.genome_name).set{g_7_control_g_6}
+Channel.value(params.tmp_directory).set{g_12_control_g_6}
+Channel.value(params.snpeff_species).set{g_15_control_g_14}
+
+
+process bwamem {
+
+input:
+ file genome from g_0_genome_g_4
+ file read1 from g_1_read_g_4
+ file read2 from g_2_read_g_4
+
+output:
+ file "*.sam"  into g_4_samFile0_g_5
+
+"""
+#!/bin/bash
+cd \$PWD
+
+bwa mem -t 64 ${genome}/GRCh38_no_alt_analysis_set.fasta ${read1} ${read2} > sample.sam
+"""
+}
+
+
+process samtools {
+
+input:
+ file sam from g_4_samFile0_g_5
+
+output:
+ file "*.sort.bam"  into g_5_bamFile0_g_6
+ file "*.bai"  into g_5_bam_bai1_g_6
+
+"""
+#!/bin/bash
+cd \$PWD
+
+samtools view -O BAM ${sam} > \$PWD/${sam.simpleName}.bam
+samtools sort -o \$PWD/${sam.simpleName}.sort.bam -O BAM \$PWD/${sam.simpleName}.bam
+samtools index -b \$PWD/${sam.simpleName}.sort.bam
+
+"""
+}
+
+
+process DeepVariant {
+
+publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /.*.html$/) "deepvariant_summary/$filename"}
+input:
+ file bam_index from g_5_bam_bai1_g_6
+ file genome_dir from g_0_genome_g_6
+ file bam_file from g_5_bamFile0_g_6
+ val genome_name from g_7_control_g_6
+ val dir from g_12_control_g_6
+
+output:
+ file "*.vcf"  into g_6_VCF0_g_14
+ file "*.html"  into g_6_outputFileHTML11
+
+"""
+#shell example: 
+
+#!/bin/sh
+
+/opt/deepvariant/bin/run_deepvariant --model_type WGS \
+	--ref ${genome_dir}/$genome_name \
+	--reads ${bam_file} \
+	--output_vcf dv.output.vcf \
+	--output_gvcf o.output.g.vcf.gz \
+	--num_shards 4 
+"""
+}
+
+
+process snpeff {
+
+publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /snpEff_summary.html$/) "summary_html/$filename"}
+input:
+ file vcf from g_6_VCF0_g_14
+ val species from g_15_control_g_14
+
+output:
+ file "${vcf.simpleName}_filtered_snps_final.ann.vcf"  into g_14_VCF00
+ file "snpEff_summary.html"  into g_14_outputFileHTML11
+ file "snpEff_genes.txt" optional true  into g_14_outputFileTxt22
+ file "*.csv"  into g_14_csvFile3_g_17
+
+"""
+java -Xmx20G -jar /home/edina/snpEff/snpEff.jar -v  -nodownload  -canon  -csvStats ${vcf.simpleName}.snpEff.csv \
+${species} -dataDir /home/edina/snpEff/data/  \
+${vcf} > ${vcf.simpleName}_filtered_snps_final.ann.vcf
+"""
+}
+
+
+process fastqc {
+
+input:
+ file read from g_2_read_g_13
+ file fq1 from g_1_read_g_13
+
+output:
+ set val("${read.simpleName}"), file("${read.toString()}_fastqc")  into g_13_outputDir0_g_17
+
+"""
+#!/bin/bash
+
+mkdir ./fastqc
+fastqc -t 16 -o ./fastqc --extract \$PWD/${read} \$PWD/${fq1} 
+"""
+}
+
+g_14_csvFile3_g_17= g_14_csvFile3_g_17.ifEmpty([""]) 
+
+
+process multiqc {
+
+publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /summary_multiqc\/multiqc_report.html$/) "multiqc_summary/$filename"}
+input:
+ set val(name), file(fastqc_data) from g_13_outputDir0_g_17.groupTuple()
+ file csv from g_14_csvFile3_g_17
+
+output:
+ file "summary_multiqc/multiqc_report.html"  into g_17_outputHTML00
+ file "summary_multiqc/multiqc_report.pdf"  into g_17_outputFilePdf11
+
+"""
+multiqc \$PWD/${fastqc_data} ${csv}  --pdf -o summary_multiqc
+"""
+}
+
+
+workflow.onComplete {
+println "##Pipeline execution summary##"
+println "---------------------------"
+println "##Completed at: $workflow.complete"
+println "##Duration: ${workflow.duration}"
+println "##Success: ${workflow.success ? 'OK' : 'failed' }"
+println "##Exit status: ${workflow.exitStatus}"
+}

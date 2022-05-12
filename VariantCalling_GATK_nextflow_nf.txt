@@ -1,0 +1,560 @@
+$HOSTNAME = "178.164.230.188"
+
+if (!params.genome){params.genome = ""} 
+if (!params.snpeff_species){params.snpeff_species = ""} 
+if (!params.genome_name){params.genome_name = ""} 
+if (!params.threads__align){params.threads__align = ""} 
+if (!params.reads){params.reads = ""} 
+if (!params.reads2){params.reads2 = ""} 
+// Stage empty file to be used as an optional input where required
+ch_empty_file_1 = file("$baseDir/.emptyfiles/NO_FILE_1", hidden:true)
+
+g_15_genome_g_110 = file(params.genome, type: 'any')
+g_15_genome_g103_9 = file(params.genome, type: 'any')
+Channel.value(params.snpeff_species).into{g_59_control_g88_50;g_59_control_g88_75}
+Channel.value(params.genome_name).into{g_64_control_g103_9;g_64_control_g88_28;g_64_control_g88_27;g_64_control_g88_19;g_64_control_g88_21;g_64_control_g88_17;g_64_control_g88_12;g_64_control_g88_22;g_64_control_g88_24;g_64_control_g88_25;g_64_control_g88_42_9;g_64_control_g88_42_10;g_64_control_g88_43_8;g_64_control_g88_43_9}
+Channel.value(params.threads__align).set{g_87_control_g_110}
+g_96_read_g_81 = file(params.reads, type: 'any')
+g_96_read_g_110 = file(params.reads, type: 'any')
+g_97_read_g_110 = file(params.reads2, type: 'any')
+g_97_read_g_81 = file(params.reads2, type: 'any')
+
+
+process fastqc {
+
+input:
+ file read from g_96_read_g_81
+ file read1 from g_97_read_g_81
+
+output:
+ set val("${read.simpleName}"), file("${read.toString()}_fastqc")  into g_81_outputDir0_g_105
+
+"""
+#!/bin/bash
+mkdir ./${read.toString()}_fastqc
+fastqc -t 16 -o ./${read.toString()}_fastqc --extract \$PWD/${read}
+fastqc -t 16 -o ./${read.toString()}_fastqc --extract \$PWD/${read1}
+
+
+"""
+}
+
+
+process bwa_mem2 {
+
+input:
+ file read1 from g_96_read_g_110
+ file genome from g_15_genome_g_110
+ val threads from g_87_control_g_110
+ file read2 from g_97_read_g_110
+
+output:
+ file "*.sam"  into g_110_samFile0_g103_10
+
+"""
+#!/bin/bash
+bwa-mem2 index ${genome}
+bwa-mem2 mem -t ${threads} ${genome} ${read1} ${read2} > ${read1.SimpleName}.sam
+"""
+}
+
+
+process samtools_samtools_vc {
+
+input:
+ file sam from g_110_samFile0_g103_10
+
+output:
+ file "./BamFiles/${sam.simpleName}.sort.bam"  into g103_10_bamFile0_g88_73
+ file "./Ref"  into g103_10_outputDir1_g103_9
+
+"""
+#!/bin/bash
+mkdir BamFiles
+mkdir Ref
+samtools view -O BAM ${sam} > ./BamFiles/${sam.simpleName}.bam
+samtools sort -o ./BamFiles/${sam.simpleName}.sort.bam -O BAM ./BamFiles/${sam.simpleName}.bam
+samtools index -b ./BamFiles/${sam.simpleName}.sort.bam
+
+"""
+}
+
+
+process GATK_picard_bamfix {
+
+input:
+ file bam from g103_10_bamFile0_g88_73
+
+output:
+ file "*.sort.f.bam"   into g88_73_bamFile0_g88_60, g88_73_bamFile0_g88_17, g88_73_bamFile0_g88_12, g88_73_bamFile0_g88_21, g88_73_bamFile0_g88_24
+
+"""
+picard AddOrReplaceReadGroups \
+ -I ${bam} \
+ -O ${bam.SimpleName}.sort.f.bam \
+ --QUIET true \
+ --RGID SRR13870683 \
+ --RGLB lib1 \
+ --RGPL ILLUMINA \
+ --RGPU SM:PRJNA687911 \
+ --RGSM SRR13870683 \
+ --VALIDATION_STRINGENCY LENIENT
+"""
+}
+
+
+process GATK_samtools_depth {
+
+input:
+ file bam from g88_73_bamFile0_g88_60
+
+output:
+ file "${bam.simpleName}_depth_out.txt"  into g88_60_inputFileTxt00
+
+"""
+samtools depth -a ${bam} > ${bam.simpleName}_depth_out.txt
+"""
+}
+
+
+process samtools_samtools_vc2 {
+
+input:
+ file genome from g_15_genome_g103_9
+ file dir from g103_10_outputDir1_g103_9
+ val genomename from g_64_control_g103_9
+
+output:
+ file "${dir}"  into g103_9_outputDir0_g88_28, g103_9_outputDir0_g88_27, g103_9_outputDir0_g88_19, g103_9_outputDir0_g88_21, g103_9_outputDir0_g88_17, g103_9_outputDir0_g88_12, g103_9_outputDir0_g88_22, g103_9_outputDir0_g88_24, g103_9_outputDir0_g88_25, g103_9_outputDir0_g88_43_8, g103_9_outputDir0_g88_43_9, g103_9_outputDir0_g88_42_9, g103_9_outputDir0_g88_42_10
+
+"""
+#!/bin/bash
+
+samtools faidx ${genome}
+samtools dict -o ${genome.simpleName}.dict ${genome}
+cp ${genomename}.fai ${dir}/${genomename}.fai
+cp ${genome.SimpleName}.dict ${dir}/${genome.simpleName}.dict
+cp ${genome}  ${dir}
+"""
+}
+
+
+process GATK_gatk_HaplotypeCaller {
+
+input:
+ file bam from g88_73_bamFile0_g88_12
+ file dir from g103_9_outputDir0_g88_12
+ val genomename from g_64_control_g88_12
+
+output:
+ file "${bam.simpleName}_raw_variants.vcf"  into g88_12_VCF0_g88_75, g88_12_VCF0_g88_43_9, g88_12_VCF0_g88_43_8, g88_12_VCF0_g88_42_9
+
+"""
+samtools index ${bam}
+gatk HaplotypeCaller \
+        -R ${dir}/${genomename} \
+        -I ${bam} \
+        -O ${bam.simpleName}_raw_variants.vcf
+"""
+}
+
+
+process GATK_SelectVariant_3_Selectvariant_1 {
+
+input:
+ val genomename from g_64_control_g88_42_9
+ file dir from g103_9_outputDir0_g88_42_9
+ file vcf from g88_12_VCF0_g88_42_9
+
+output:
+ file "${vcf.simpleName}_raw_snps_recal.vcf"  into g88_42_9_VCF0_g88_28
+
+"""
+gatk SelectVariants \
+        -R ${dir}/${genomename}  \
+        -V ${vcf} \
+        --select-type-to-include SNP \
+        -O ${vcf.simpleName}_raw_snps_recal.vcf
+"""
+}
+
+
+process GATK_SelectVariant_Selectvariant_1 {
+
+input:
+ val genomename from g_64_control_g88_43_8
+ file dir from g103_9_outputDir0_g88_43_8
+ file vcf from g88_12_VCF0_g88_43_8
+
+output:
+ file "${vcf.simpleName}_raw_snps.vcf"  into g88_43_8_VCF0_g88_17
+
+"""
+gatk SelectVariants \
+        -R ${dir}/${genomename}  \
+        -V ${vcf} \
+        --select-type-to-include SNP \
+        -O ${vcf.simpleName}_raw_snps.vcf
+"""
+}
+
+
+process GATK_SelectVariant_Selectvariant_2 {
+
+input:
+ val genomename from g_64_control_g88_43_9
+ file dir from g103_9_outputDir0_g88_43_9
+ file vcf from g88_12_VCF0_g88_43_9
+
+output:
+ file "${vcf.simpleName}_raw_indels.vcf"  into g88_43_9_VCF0_g88_19
+
+"""
+gatk SelectVariants \
+        -R ${dir}/${genomename}  \
+        -V ${vcf} \
+        --select-type-to-include INDEL \
+        -O ${vcf.simpleName}_raw_indels.vcf
+"""
+}
+
+
+process GATK_snpeff_2 {
+
+publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /snpEff_summary.html$/) "raw_html/$filename"}
+input:
+ file vcf from g88_12_VCF0_g88_75
+ val species from g_59_control_g88_75
+
+output:
+ file "${vcf.simpleName}_filtered_snps_final.ann.vcf"  into g88_75_VCF00
+ file "snpEff_summary.html"  into g88_75_outputFileHTML11
+ file "snpEff_genes.txt" optional true  into g88_75_outputFileTxt22
+ file "*.csv"  into g88_75_csvFile3_g_105
+
+"""
+java -Xmx20G -jar /home/edina/snpEff/snpEff.jar -v  -nodownload  -canon  -csvStats ${vcf.simpleName}.snpEff.csv \
+${species} -dataDir /home/edina/snpEff/data/  \
+${vcf} > ${vcf.simpleName}_filtered_snps_final.ann.vcf
+"""
+}
+
+
+process GATK_gatk_VariantFiltration {
+
+input:
+ val genomename from g_64_control_g88_17
+ file bam from g88_73_bamFile0_g88_17
+ file dir from g103_9_outputDir0_g88_17
+ file vcf from g88_43_8_VCF0_g88_17
+
+output:
+ file "${vcf.simpleName}_filtered_snps.vcf"  into g88_17_VCF0_g88_41_2
+ file "${vcf.simpleName}_filtered_snps.vcf.idx"  into g88_17_genome_index11
+
+"""
+gatk VariantFiltration \
+        -R ${dir}/${genomename}  \
+        -V ${vcf} \
+        -O ${vcf.simpleName}_filtered_snps.vcf \
+        -filter-name "QD_filter" -filter "QD < 2.0" \
+        -filter-name "FS_filter" -filter "FS > 60.0" \
+        -filter-name "MQ_filter" -filter "MQ < 40.0" \
+        -filter-name "SOR_filter" -filter "SOR > 4.0" \
+        -filter-name "MQRankSum_filter" -filter "MQRankSum < -12.5" \
+        -filter-name "ReadPosRankSum_filter" -filter "ReadPosRankSum < -8.0"
+"""
+}
+
+
+process GATK_SelectVariant_2_Selectvariant_2 {
+
+input:
+ file ivcf from g88_17_VCF0_g88_41_2
+
+output:
+ file "${ivcf.simpleName}_bqsr_indels.vcf"  into g88_41_2_VCF0_g88_21, g88_41_2_VCF0_g88_22
+
+"""
+gatk SelectVariants \
+        --exclude-filtered \
+        -V ${ivcf} \
+        -O ${ivcf.simpleName}_bqsr_indels.vcf
+"""
+}
+
+
+process GATK_gatk_VariantFiltration2 {
+
+input:
+ file vcf from g88_43_9_VCF0_g88_19
+ file dir from g103_9_outputDir0_g88_19
+ val genomename from g_64_control_g88_19
+
+output:
+ file "${vcf.simpleName}_filtered_indels.vcf"  into g88_19_VCF0_g88_41_1
+
+"""
+gatk VariantFiltration \
+        -R ${dir}/${genomename} \
+        -V ${vcf} \
+        -O ${vcf.simpleName}_filtered_indels.vcf \
+        -filter-name "QD_filter" -filter "QD < 2.0" \
+        -filter-name "FS_filter" -filter "FS > 200.0" \
+        -filter-name "SOR_filter" -filter "SOR > 10.0"
+"""
+}
+
+
+process GATK_SelectVariant_2_Selectvariant_1 {
+
+input:
+ file svcf from g88_19_VCF0_g88_41_1
+
+output:
+ file "${svcf.simpleName}_bqsr_snps.vcf"  into g88_41_1_VCF0_g88_21, g88_41_1_VCF0_g88_22
+
+"""
+gatk SelectVariants \
+        --exclude-filtered  \
+        -V ${svcf} \
+        -O ${svcf.simpleName}_bqsr_snps.vcf
+"""
+}
+
+
+process GATK_gatk_BaseRecalibrator {
+
+input:
+ file bam from g88_73_bamFile0_g88_21
+ file svcf from g88_41_2_VCF0_g88_21
+ file ivcf from g88_41_1_VCF0_g88_21
+ file dir from g103_9_outputDir0_g88_21
+ val genomename from g_64_control_g88_21
+
+output:
+ file "${bam.simpleName}_recal_data.table"  into g88_21_table0_g88_48, g88_21_table0_g88_24
+
+"""
+gatk IndexFeatureFile \
+     -I ${svcf} 
+gatk IndexFeatureFile \
+     -I ${ivcf} 
+gatk BaseRecalibrator \
+        -R ${dir}/${genomename} \
+        -I ${bam} \
+        --known-sites ${svcf} \
+        --known-sites ${ivcf} \
+        --QUIET true \
+        -O ${bam.simpleName}_recal_data.table
+   
+"""
+}
+
+
+process GATK_gatk_ApplyBQSR {
+
+input:
+ file table from g88_21_table0_g88_24
+ file bam from g88_73_bamFile0_g88_24
+ file dir from g103_9_outputDir0_g88_24
+ val genomename from g_64_control_g88_24
+
+output:
+ file "${bam.simpleName}_recal_reads.bam"  into g88_24_bamFile0_g88_22, g88_24_bamFile0_g88_25
+
+"""
+gatk ApplyBQSR \
+        -R ${dir}/${genomename} \
+        -I ${bam} \
+        -bqsr ${table} \
+        -O ${bam.simpleName}_recal_reads.bam \
+"""
+}
+
+
+process GATK_gatk_HaplotypeCaller2 {
+
+input:
+ file bam from g88_24_bamFile0_g88_25
+ file dir from g103_9_outputDir0_g88_25
+ val genomename from g_64_control_g88_25
+
+output:
+ file "${bam.simpleName}_raw_variants_recal.vcf"  into g88_25_VCF0_g88_42_10
+
+"""
+samtools index ${bam}
+gatk HaplotypeCaller \
+        -R ${dir}/${genomename} \
+        -I ${bam} \
+        -O ${bam.simpleName}_raw_variants_recal.vcf
+"""
+}
+
+
+process GATK_SelectVariant_3_Selectvariant_2 {
+
+input:
+ val genomename from g_64_control_g88_42_10
+ file dir from g103_9_outputDir0_g88_42_10
+ file vcf from g88_25_VCF0_g88_42_10
+
+output:
+ file "${vcf.simpleName}_raw_indels_recal.vcf"  into g88_42_10_VCF0_g88_27
+
+"""
+gatk SelectVariants \
+        -R ${dir}/${genomename}  \
+        -V ${vcf} \
+        --select-type-to-include INDEL \
+        -O ${vcf.simpleName}_raw_indels_recal.vcf
+"""
+}
+
+
+process GATK_gatk_VariantFiltration3 {
+
+input:
+ file vcf from g88_42_10_VCF0_g88_27
+ file dir from g103_9_outputDir0_g88_27
+ val genomename from g_64_control_g88_27
+
+output:
+ file "${vcf.simpleName}_filtered_snps_final.vcf"  into g88_27_VCF0_g88_50
+ file "${vcf.simpleName}_filtered_snps_final.vcf.idx"  into g88_27_genome_index11
+
+"""
+gatk VariantFiltration \
+        -R ${dir}/${genomename} \
+        -V ${vcf} \
+        -O ${vcf.simpleName}_filtered_snps_final.vcf \
+        -filter-name "QD_filter" -filter "QD < 2.0" \
+        -filter-name "FS_filter" -filter "FS > 60.0" \
+        -filter-name "MQ_filter" -filter "MQ < 40.0" \
+        -filter-name "SOR_filter" -filter "SOR > 4.0" \
+        -filter-name "MQRankSum_filter" -filter "MQRankSum < -12.5" \
+        -filter-name "ReadPosRankSum_filter" -filter "ReadPosRankSum < -8.0"
+"""
+}
+
+
+process GATK_snpeff {
+
+publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /snpEff_summary.html$/) "filtered_html/$filename"}
+input:
+ file vcf from g88_27_VCF0_g88_50
+ val species from g_59_control_g88_50
+
+output:
+ file "${vcf.simpleName}_filtered_snps_final.ann.vcf"  into g88_50_VCF00
+ file "snpEff_summary.html"  into g88_50_outputFileHTML11
+ file "snpEff_genes.txt" optional true  into g88_50_outputFileTxt22
+ file "*.csv"  into g88_50_csvFile3_g_105
+
+"""
+java -Xmx20G -jar /home/edina/snpEff/snpEff.jar -v  -nodownload  -canon  -csvStats ${vcf.simpleName}.snpEff.csv \
+${species} -dataDir /home/edina/snpEff/data/  \
+${vcf} > ${vcf.simpleName}_filtered_snps_final.ann.vcf
+"""
+}
+
+g88_50_csvFile3_g_105= g88_50_csvFile3_g_105.ifEmpty([""]) 
+
+
+process multiqc {
+
+publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /summary_multiqc\/multiqc_report.html$/) "html/$filename"}
+publishDir params.outdir, mode: 'copy', saveAs: {filename -> if (filename =~ /summary_multiqc\/multiqc_report.pdf$/) "pdf/$filename"}
+input:
+ set val(name), file(fastqc_data) from g_81_outputDir0_g_105.groupTuple()
+ file csv from g88_50_csvFile3_g_105
+ file rawcsv from g88_75_csvFile3_g_105
+
+output:
+ file "summary_multiqc/multiqc_report.html"  into g_105_outputHTML00
+ file "summary_multiqc/multiqc_report.pdf"  into g_105_outputFilePdf11
+
+"""
+multiqc \$PWD/${fastqc_data} ${rawcsv} ${csv}  --pdf -o summary_multiqc
+"""
+}
+
+
+process GATK_gatk_BaseRecalibrator2 {
+
+input:
+ file bam from g88_24_bamFile0_g88_22
+ file svcf from g88_41_2_VCF0_g88_22
+ file ivcf from g88_41_1_VCF0_g88_22
+ file dir from g103_9_outputDir0_g88_22
+ val genomename from g_64_control_g88_22
+
+output:
+ file "${bam.simpleName}_post_recal_data.table"  into g88_22_table0_g88_48
+
+"""
+gatk IndexFeatureFile \
+     -I ${svcf} 
+gatk IndexFeatureFile \
+     -I ${ivcf} 
+gatk BaseRecalibrator \
+        -R ${dir}/${genomename} \
+        -I ${bam} \
+        --known-sites ${svcf} \
+        --known-sites ${ivcf} \
+        --QUIET true \
+        -O ${bam.simpleName}_post_recal_data.table
+"""
+}
+
+
+process GATK_gatk_AnalyzeCovariates {
+
+input:
+ file table from g88_21_table0_g88_48
+ file ptable from g88_22_table0_g88_48
+
+output:
+ file "${table.simpleName}_recalibration_plots.pdf"  into g88_48_outputFilePdf00
+
+"""
+gatk AnalyzeCovariates \
+	-before ${table} \
+	-after ${ptable} \
+	-plots ${table.simpleName}_recalibration_plots.pdf
+"""
+}
+
+
+process GATK_gatk_VariantFiltration4 {
+
+input:
+ file vcf from g88_42_9_VCF0_g88_28
+ file dir from g103_9_outputDir0_g88_28
+ val genomename from g_64_control_g88_28
+
+output:
+ file "${vcf.simpleName}_filtered_indels_final.vcf"  into g88_28_VCF00
+ file "${vcf.simpleName}_filtered_indels_final.vcf.idx"  into g88_28_genome_index11
+
+"""
+gatk VariantFiltration \
+        -R ${dir}/${genomename} \
+        -V ${vcf} \
+        -O ${vcf.simpleName}_filtered_indels_final.vcf \
+        -filter-name "QD_filter" -filter "QD < 2.0" \
+        -filter-name "FS_filter" -filter "FS > 200.0" \
+        -filter-name "SOR_filter" -filter "SOR > 10.0"
+"""
+}
+
+
+workflow.onComplete {
+println "##Pipeline execution summary##"
+println "---------------------------"
+println "##Completed at: $workflow.complete"
+println "##Duration: ${workflow.duration}"
+println "##Success: ${workflow.success ? 'OK' : 'failed' }"
+println "##Exit status: ${workflow.exitStatus}"
+}
