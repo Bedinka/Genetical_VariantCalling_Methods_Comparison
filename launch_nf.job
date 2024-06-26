@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --partition WORK
+#SBATCH --mem 80G
+#SBATCH -c 1
+
+PIPELINE=$1
+CONFIG=$2
+ZIP=$3
+
+# unzipping
+zip_file=${ZIP}
+if [zip_file == *.zip]
+then 
+	unzip $zip_file=files 
+fi 
+
+nextflow -C ${CONFIG}  -- reads  $files run ${PIPELINE} 

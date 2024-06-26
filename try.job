@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --partition WORK
+#SBATCH --mem 80G
+#SBATCH -c 1
+
+echo $1
+file=$1
+if [[ $file = *.zip ]]
+then
+    echo "Unzipping: $file"
+    unzip $file
+    file1="$(find ./*_1.fastq)"
+    file2="$(find ./*_2.fastq)"
+    echo "$file1 $file2"
+    module load bioconda
+    nextflow -C /home/edina/testdirectory/runs/check.config run /home/edina/testdirectory/runs/raw_data_analysis.nf --reads $file1 $file2
+else
+    echo "No zip on input!"
+fi
